@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Horror Challenge - Estilo Undertale</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+    body {
+      margin: 0;
+      background: #0b0b0b;
+      color: #e0e0e0;
+      font-family: 'Press Start 2P', cursive;
+      user-select: none;
+      overflow: hidden;
+    }
+
+    #game-container {
+      width: 800px;
+      height: 400px;
+      background: #111;
+      margin: 30px auto;
+      border: 4px solid #440000;
+      box-shadow: 0 0 20px #880000 inset;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+    }
+
+    #text-box {
+      background: #220000cc;
+      border-top: 4px solid #660000;
+      padding: 20px;
+      height: 140px;
+      overflow-y: auto;
+      color: #ffdddd;
+      font-size: 12px;
+      line-height: 1.4em;
+    }
+
+    #choice-box {
+      margin-top: 10px;
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+      flex-wrap: wrap;
+    }
+
+    .choice {
+      background: #660000;
+      padding: 10px 15px;
+      border: 2px solid #ff6666;
+      cursor: pointer;
+      color: #fff;
+      transition: all 0.2s ease;
+      font-size: 13px;
+      border-radius: 6px;
+      user-select:none;
+    }
+
+    .choice:hover, .choice:focus {
+      background: #aa0000;
+      outline: none;
+    }
+
+    #game-scene {
+      flex-grow: 1;
+      position: relative;
+      padding: 15px;
+      background: #1a0000;
+      overflow: hidden;
+    }
+
+    #player {
+      position: absolute;
+      width: 48px;
+      height: 48px;
+      background: url('https://i.imgur.com/9hFOWl6.png') no-repeat center center;
+      background-size: contain;
+      top: 180px;
+      left: 375px;
+      transition: top 0.3s, left 0.3s;
+    }
+
+    .room {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      color: #ffdddd;
+      font-size: 20px;
+    }
+
+    #prompt-input {
+      background: transparent;
+      border: 2px solid #ff6666;
+      color: #ffdddd;
+      font-family: 'Press Start 2P', cursive;
+      font-size: 14px;
+      padding: 5px 10px;
+      width: 220px;
+      outline: none;
+      border-radius: 5px;
+      margin-top: 10px;
+      user-select:none;
+    }
+
+    #prompt-button {
+      background: #aa0000;
+      border: none;
+      font-family: 'Press Start 2P', cursive;
+      padding: 7px 15px;
+      margin-left: 10px;
+      color: #fff;
+      cursor: pointer;
+      border-radius: 5px;
+      font-size: 14px;
+      user-select:none;
+      transition: background-color 0.2s ease;
+    }
+
+    #prompt-button:hover {
+      background-color: #ff0000;
+    }
+
+    /* Scrollbar style for text box */
+    #text-box::-webkit-scrollbar {
+      width: 6px;
+    }
+    #text-box::-webkit-scrollbar-thumb {
+      background-color: #ff4444;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body>
+  <div id="game-container" role="main" aria-label="Jogo de terror estilo Undertale com desafios e narrativa">
+    <div id="game-scene" aria-live="polite" aria-atomic="true">
+      <div id="player" aria-label="Jogador representado por um sprite"></div>
+    </div>
+    <div id="text-box" tabindex="0" aria-live="polite"></div>
+    <div id="choice-box" role="list"></div>
+  </div>
+
+  <script>
+    // Game state and variables
+    const textBox = document.getElementById('text-box');
+    const choiceBox = document.getElementById('choice-box');
+    const player = document.getElementById('player');
+    const gameScene = document.getElementById('game-scene');
+
+    let gameState = {
+      currentRoom: 'start',
+      storyProgress: 0,
+      inventory: [],
+      challengeSolved: {
+        puzzle1: false,
+        puzzle2: false,
+        puzzle3: false
+      },
+      foundSecretJournal: false,
+      plotTwistRevealed: false
+    };
+
+    // Rooms definition with story, challenges, and choices
+    const rooms = {
+
+      start: {
+        description: 'Você acorda em um quarto escuro e vazio. Uma fraca luz vermelha pisca no canto. Há uma porta à sua frente.',
+        choices: [
+          { text: 'Ir até a porta', nextRoom: 'door' },
+          { text: 'Examinar a luz vermelha', nextRoom: 'light' },
+        ],
+        playerPos: { top: '180px', left: '375px' }
+      },
+
+      door: {
+        description: 'A porta está trancada. Há um teclado numérico com uma senha de 3 dígitos. Você precisa inserir o código.',
+        challenge: 'puzzle1',
+        playerPos: { top: '180px', left: '650px' }
+      },
+
+      light: {
+        description: 'A luz vermelha parece um botão estranho. Você pressiona e algo estranho acontece...',
+        choices: [
+          { text: 'Voltar para o centro do quarto', nextRoom: 'start' },
+          { text: 'Investigar o som', nextRoom: 'voice' }
+        ],
+        playerPos: { top: '180px', left: '100px' }
+      },
+
+      voice: {
+        description: 'Você ouve uma voz sussurrando: "Encontre a saída... antes que a escuridão te alcance."',
+        choices: [
+          { text: 'Tentar entender a voz', nextRoom: 'clue' },
+          { text: 'Ignorar e voltar para a luz', nextRoom: 'light' }
+        ],
+        playerPos: { top: '130px', left: '100px' }
+      },
+
+      clue: {
+        description: 'Na parede aparece um código escrito com sangue: "7 1 4".',
+        choices: [
+          { text: 'Voltar para a porta trancada', nextRoom: 'door' }
+        ],
+        playerPos: { top: '130px', left: '100px' },
+        foundCode: true
+      },
+
+      hallway: {
+        description: 'A porta se abre! Você entra em um corredor sombrio, com um quadro na parede e uma grade trancada à sua direita. Algo brilha no chão.',
+        choices: [
+          { text: 'Examinar o quadro', nextRoom: 'painting' },
+          { text: 'Tentar abrir a grade', nextRoom: 'gate' },
+          { text: 'Investigar o objeto brilhante no chão', nextRoom: 'journal' }
+        ],
+        playerPos: { top: '180px', left: '650px' }
+      },
+
+      painting: {
+        description: 'O quadro mostra uma figura obscura que parece te seguir com os olhos. No canto há uma palavra: "CORAGEM".',
+        choices: [
+          { text: 'Voltar ao corredor', nextRoom: 'hallway' }
+        ],
+        playerPos: { top: '130px', left: '400px' },
+        foundWord: true
+      },
+
+      gate: {
+        description: 'A grade está trancada com um cadeado. Um enigma está gravado: "Qual palavra formada pelas letras C, O, R, A, G, E, M você precisa para abrir?"',
+        challenge: 'puzzle2',
+        playerPos: { top: '180px', left: '700px' }
+      },
+
+      journal: {
+        description: 'Você pega um diário velho e sujo. As páginas falam de uma prisão e um segredo sombrio sobre o verdadeiro prisioneiro.',
+        choices: [
+          { text: 'Ler mais do diário', nextRoom: 'journal_reading' },
+          { text: 'Voltar ao corredor', nextRoom: 'hallway' }
+        ],
+        playerPos: { top: '180px', left: '550px' }
+      },
+
+      journal_reading: {
+        description: 'As palavras no diário revelam uma identidade esquecida: "O prisioneiro não é quem você pensa... Você está preso dentro de si mesmo."',
+        choices: [
+          { text: 'Sentir um calafrio e voltar', nextRoom: 'hallway' }
+        ],
+        playerPos: { top: '160px', left: '550px' },
+        foundJournal: true
+      },
+
+      secret_room: {
+        description: 'Uma porta secreta se abre na parede. Lá dentro, há uma cadeira de aço com várias marcas de correntes usadas. O ar está pesado, e você vê seu nome gravado no encosto...',
+        choices: [
+          { text: 'Sentar na cadeira', nextRoom: 'plot_twist' },
+          { text: 'Sair da sala secreta', nextRoom: 'hallway' }
+        ],
+        playerPos: { top: '160px', left: '350px' }
+      },
+
+      plot_twist: {
+        description: '',
+        choices: [],
+        playerPos: { top: '160px', left: '350px' }
+      },
+
+      freedom: {
+        description: 'Você abriu a grade e finalmente consegue sair. A luz do sol entra – mas será que a verdadeira liberdade é isso?',
+        choices: [
+          { text: 'Jogar novamente', nextRoom: 'start' }
+        ],
+        playerPos: { top: '180px', left: '750px' }
+      }
+    };
+
+    // Display functions
+
+    function setPlayerPosition(pos) {
+      player.style.top = pos.top;
+      player.style.left = pos.left;
+    }
+
+    function displayRoom(roomKey) {
+      const room = rooms[roomKey];
+      gameState.currentRoom = roomKey;
+      setPlayerPosition(room.playerPos);
+      clearChoices();
+      clearInput();
+
+      // Special logic based on the room
+      if(roomKey === 'hallway' && gameState.foundSecretJournal && !gameState.plotTwistRevealed) {
+        // Unlock secret room after reading journal
+        rooms.hallway.choices.push({ text: 'Investigar porta secreta na parede', nextRoom: 'secret_room' });
+      }
+
+      if(room.foundCode && !gameState.inventory.includes('code')) {
+        gameState.inventory.push('code');
+      }
+      if(room.foundWord && !gameState.inventory.includes('word')) {
+        gameState.inventory.push('word');
+      }
+      if(room.foundJournal) {
+        gameState.foundSecretJournal = true;
+      }
+
+      if(roomKey === 'plot_twist') {
+        revealPlotTwist();
+        return;
+      }
+
+      appendText(room.description);
+
+      if(room.choices) {
+        // Remove duplicate secret door choice if it has been added multiple times
+        const uniqueChoices = [];
+        const texts = new Set();
+        for (const choice of room.choices) {
+          if (!texts.has(choice.text)) {
+            uniqueChoices.push(choice);
+            texts.add(choice.text);
+          }
+        }
+
+        uniqueChoices.forEach(choice => {
+          createChoice(choice.text, () => {
+            displayRoom(choice.nextRoom);
+          });
+        });
+      } else if(room.challenge) {
+        startChallenge(room.challenge);
+      }
+    }
+
+    function appendText(text) {
+      textBox.innerHTML = '';
+      typeWriter(text, 0);
+    }
+
+    // Typewriter effect for narrative text
+    function typeWriter(text, i) {
+      if(i < text.length) {
+        textBox.innerHTML += text.charAt(i);
+        setTimeout(() => typeWriter(text, i + 1), 15);
+      }
+    }
+
+    function createChoice(text, handler) {
+      const choice = document.createElement('button');
+      choice.setAttribute('class', 'choice');
+      choice.setAttribute('role', 'listitem');
+      choice.textContent = text;
+      choice.addEventListener('click', () => {
+        choiceBox.innerHTML = '';
+        handler();
+      });
+      choiceBox.appendChild(choice);
+    }
+
+    function clearChoices() {
+      choiceBox.innerHTML = '';
+    }
+
+    function clearInput() {
+      const existingInput = document.getElementById('prompt-input');
+      const existingButton = document.getElementById('prompt-button');
+      if (existingInput) existingInput.remove();
+      if (existingButton) existingButton.remove();
+    }
+
+    // Challenges: codes input prompts with validation
+
+    function startChallenge(name) {
+      clearChoices();
+      clearInput();
+
+      if (name === 'puzzle1') {
+        // Door code challenge (3 digit code)
+        appendText('Digite o código de 3 dígitos:');
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.maxLength = 3;
+        input.id = 'prompt-input';
+        input.setAttribute('aria-label', 'Digite o código de três dígitos');
+        choiceBox.appendChild(input);
+
+        const button = document.createElement('button');
+        button.textContent = 'Enviar';
+        button.id = 'prompt-button';
+        choiceBox.appendChild(button);
+
+        button.addEventListener('click', () => {
+          const code = input.value.trim();
+          if (code === '714') {
+            gameState.challengeSolved.puzzle1 = true;
+            appendText('O código está correto! A porta se destranca com um rangido sinistro...');
+            setTimeout(() => {
+              displayRoom('hallway');
+            }, 2500);
+          } else {
+            appendText('Código incorreto. Tente novamente.');
+            input.value = '';
+          }
+        });
+
+        input.focus();
+
+      } else if (name === 'puzzle2') {
+        // Word puzzle based on clue "CORAGEM"
+        appendText('Digite a palavra para abrir o cadeado:');
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.id = 'prompt-input';
+        input.setAttribute('aria-label', 'Digite a palavra para abrir o cadeado');
+        choiceBox.appendChild(input);
+
+        const button = document.createElement('button');
+        button.textContent = 'Enviar';
+        button.id = 'prompt-button';
+        choiceBox.appendChild(button);
+
+        button.addEventListener('click', () => {
+          const answer = input.value.trim().toUpperCase();
+          if (answer === 'CORAGEM') {
+            gameState.challengeSolved.puzzle2 = true;
+            appendText('O cadeado se abre lentamente. O caminho está livre.');
+            setTimeout(() => {
+              displayRoom('freedom');
+            }, 2500);
+          } else {
+            appendText('Palavra incorreta. Pense bem e tente outra vez.');
+            input.value = '';
+          }
+        });
+
+        input.focus();
+
+      } else if (name === 'puzzle3') {
+        // Puzzle 3 logic can be extended if needed
+      }
+    }
+
+    function revealPlotTwist() {
+      gameState.plotTwistRevealed = true;
+      clearChoices();
+      clearInput();
+      textBox.innerHTML = '';
+      // Slow text reveal with dramatic effect
+      let twistText = 'Você sente a cadeira apertar contra sua pele...\n';
+      twistText += 'Uma voz profunda e estrangulada sussurra dentro da sua mente:\n';
+      twistText += '"Você nunca saiu daqui... Essa prisão é a sua mente."';
+      let index = 0;
+
+      function slowReveal() {
+        if (index < twistText.length) {
+          // Handle newline as line break
+          if(twistText[index] === '\n') {
+            textBox.innerHTML += '<br/>';
+          } else {
+            textBox.innerHTML += twistText[index];
+          }
+          index++;
+          setTimeout(slowReveal, 45);
+        } else {
+          // After text reveal, offer only restart option
+          const restartBtn = document.createElement('button');
+          restartBtn.className = 'choice';
+          restartBtn.textContent = 'Jogar novamente';
+          restartBtn.addEventListener('click', () => {
+            // Reset game state
+            gameState = {
+              currentRoom: 'start',
+              storyProgress: 0,
+              inventory: [],
+              challengeSolved: {
+                puzzle1: false,
+                puzzle2: false,
+                puzzle3: false
+              },
+              foundSecretJournal: false,
+              plotTwistRevealed: false
+            };
+            displayRoom('start');
+          });
+          choiceBox.appendChild(restartBtn);
+        }
+      }
+
+      slowReveal();
+    }
+
+    // Keyboard navigation for accessibility
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Tab') {
+        // Allow tab to cycle through choices
+        const focusable = choiceBox.querySelectorAll('.choice, #prompt-input, #prompt-button');
+        if (focusable.length > 0) {
+          e.preventDefault();
+          let index = Array.from(focusable).indexOf(document.activeElement);
+          index = (index + 1) % focusable.length;
+          focusable[index].focus();
+        }
+      }
+      // Allow pressing Enter to submit input on challenges
+      if (e.key === 'Enter') {
+        const button = document.getElementById('prompt-button');
+        if(button) {
+          button.click();
+        }
+      }
+    });
+
+    // Initialize game
+    displayRoom(gameState.currentRoom);
+  </script>
+</body>
+</html>
+
